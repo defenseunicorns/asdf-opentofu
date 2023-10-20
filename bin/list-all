@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# Author credit: https://github.com/rynkowsg/asdf-opentofu/blob/ae591570e5e6d002cbd57cba9acae1b3d13f9f0a/bin/list-all
+#
+#  Usage:
+#    asdf list-all opentofu
+#
+#  Usage as standalone:
+#    ./bin/list-all
+#
+#  To see debug logs use env var `DEBUG=true`.
+#
+
+set -euo pipefail
+
+CURRENT_SCRIPT_PATH=${BASH_SOURCE[0]}
+PLUGIN_DIR=$(dirname "$(dirname "${CURRENT_SCRIPT_PATH}")")
+
+# shellcheck source=./lib/common.bash
+source "${PLUGIN_DIR}/lib/versions.bash" # list_all_versions sort_versions
+
+main() {
+  list_all_versions | sort_versions | xargs echo
+}
+
+main "$@"

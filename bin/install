@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+# Author credit: https://github.com/rynkowsg/asdf-opentofu/blob/ae591570e5e6d002cbd57cba9acae1b3d13f9f0a/bin/install
+#
+#  Usage as standalone:
+#    ASDF_INSTALL_VERSION=1.6.0-alpha2 ASDF_INSTALL_TYPE=version ASDF_INSTALL_PATH=tmp-installs ASDF_DOWNLOAD_PATH=tmp-downloads ./bin/install
+#
+#  It run it standalone, first the `bin/download` needs to be executed.
+#
+#  To see debug logs use env var `DEBUG=true`.
+#
+
+set -euo pipefail
+
+CURRENT_SCRIPT_PATH=${BASH_SOURCE[0]}
+PLUGIN_DIR=$(dirname "$(dirname "$CURRENT_SCRIPT_PATH")")
+
+# shellcheck source=./lib/common.bash
+source "${PLUGIN_DIR}/lib/common.bash" # TOOL_NAME, fail
+# shellcheck source=./lib/log.bash
+source "${PLUGIN_DIR}/lib/log.bash" # log_debug log_info
+
+install_version() {
+  local install_type="$1"
+  local version="$2"
+  local install_path="${3%/bin}/bin"
+
+  if [ "$install_type" != "version" ]; then
+    fail "asdf-$TOOL_NAME supports release installs only"
+  fi
+
+  (
+    mkdir -p "${install_path}"
+    cp -r "${ASDF_DOWNLOAD_PATH}"/* "${install_path}"
+
+    local tool_cmd
+    tool_cmd="$(echo "${TOOL_TEST}" | cut -d' ' -f1)"
+    test -x "${install_path}/${tool_cmd}" || fail "Expected ${install_path}/${tool_cmd} to be executable."
+
+    log_info "${TOOL_NAME} ${version} installation was successful!"
+  ) || (
+    rm -rf "${install_path}"
+    fail "An error occurred while installing ${TOOL_NAME} ${version}."
+  )
+}
+
+main() {
+  [ -z "${ASDF_INSTALL_TYPE+x}" ] && fail "ASDF_INSTALL_TYPE is required"
+  [ -z "${ASDF_INSTALL_VERSION+x}" ] && fail "ASDF_INSTALL_VERSION is required"
+  [ -z "${ASDF_INSTALL_PATH+x}" ] && fail "ASDF_INSTALL_PATH is required"
+
+  log_debug "ASDF_INSTALL_TYPE: ${ASDF_INSTALL_TYPE}"
+  log_debug "ASDF_INSTALL_VERSION: ${ASDF_INSTALL_VERSION}"
+  log_debug "ASDF_INSTALL_PATH: ${ASDF_INSTALL_PATH}"
+  log_debug "ASDF_DOWNLOAD_PATH: ${ASDF_DOWNLOAD_PATH}"
+
+  install_version "${ASDF_INSTALL_TYPE}" "${ASDF_INSTALL_VERSION}" "${ASDF_INSTALL_PATH}"
+}
+
+main "$@"

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+# Author credit: https://github.com/rynkowsg/asdf-opentofu/blob/ae591570e5e6d002cbd57cba9acae1b3d13f9f0a/bin/download
+#
+#  Usage as standalone:
+#    ASDF_INSTALL_VERSION=1.6.0-alpha2 ASDF_DOWNLOAD_PATH=tmp-downloads ./bin/download
+#
+#  To see debug logs use env var `DEBUG=true`.
+#
+
+set -euo pipefail
+
+CURRENT_SCRIPT_PATH=${BASH_SOURCE[0]}
+PLUGIN_DIR=$(dirname "$(dirname "$CURRENT_SCRIPT_PATH")")
+
+# shellcheck source=./lib/common.bash
+source "${PLUGIN_DIR}/lib/common.bash" # GH_REPO
+# shellcheck source=./lib/log.bash
+source "${PLUGIN_DIR}/lib/log.bash" # log_debug log_info is_debug
+# shellcheck source=./lib/trap.bash
+source "${PLUGIN_DIR}/lib/trap.bash" # add_on_exit
+
+download_release() {
+  local version="$1"
+  local dest="$2"
+
+  local platform_uname platform
+  platform_uname="$(uname -s)"
+  case "${platform_uname}" in
+    Linux*) platform="linux" ;;
+    Darwin*) platform="darwin" ;;
+    *) fail "Platform \"${platform_uname}\" is not yet supported." ;;
+  esac
+
+  local uname_arch arch
+  uname_arch="$(uname -m)"
+  case "${uname_arch}" in
+    arm) arch="arm" ;;
+    aarch64 | arm64) arch="arm64" ;;
+    x86_64) arch="amd64" ;;
+    i*86) arch="386" ;;
+    *) fail "Architecture \"${uname_arch}\" is not yet supported." ;;
+  esac
+  # possible values:
+  # https://stackoverflow.com/questions/45125516/possible-values-for-uname-m
+
+  local temp_dir
+  temp_dir=$(mktemp -d -t "asdf-opentofu.XXXX")
+  add_on_exit rm -rf "${temp_dir}"
+
+  log_info "* Downloading opentofu release ${version}..."
+
+  # releases: https://github.com/opentofu/opentofu/releases
+  # sample URL: https://github.com/opentofu/opentofu/releases/download/v1.6.0-alpha2/tofu_1.6.0-alpha2_linux_amd64.zip
+  local download_url="${GH_REPO}/releases/download/v${version}/tofu_${version}_${platform}_${arch}.zip"
+  log_info "from ${download_url}"
+
+  local curl_opts=(-fsSL)
+  if [ -n "${GITHUB_API_TOKEN:-}" ]; then
+    curl_opts=("${curl_opts[@]}" -H "Authorization: token $GITHUB_API_TOKEN")
+  fi
+
+  local temp_zip_path="${temp_dir}/tofu.zip"
+  curl "${curl_opts[@]}" -o "${temp_zip_path}" -C - "${download_url}" || fail "Could not download ${download_url}"
+
+  local unzip_opts=(-o "${temp_zip_path}" -d "${dest}")
+  ! is_debug && unzip_opts=(-q "${unzip_opts[@]}")
+  unzip "${unzip_opts[@]}" || fail "Could not extract ${temp_zip_path}"
+
+  log_info "* Downloading opentofu release ${version}... DONE"
+}
+
+main() {
+  [ -z "${ASDF_DOWNLOAD_PATH+x}" ] && fail "ASDF_DOWNLOAD_PATH is required"
+  [ -z "${ASDF_INSTALL_VERSION+x}" ] && fail "ASDF_INSTALL_VERSION is required"
+
+  log_debug "ASDF_DOWNLOAD_PATH: $ASDF_DOWNLOAD_PATH"
+  log_debug "ASDF_INSTALL_VERSION: $ASDF_INSTALL_VERSION"
+  log_debug "TOOL_NAME: $TOOL_NAME"
+
+  mkdir -p "$ASDF_DOWNLOAD_PATH"
+  download_release "${ASDF_INSTALL_VERSION}" "${ASDF_DOWNLOAD_PATH}"
+}
+
+main "$@"
